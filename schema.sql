@@ -1,0 +1,13 @@
+-- Návrh databáze pro RP data. Před produkcí doplnit RLS policies a otestovat.
+create table profiles (id uuid primary key, rp_id text unique, display_name text not null, locale text default 'cs', created_at timestamptz default now());
+create table factions (id uuid primary key default gen_random_uuid(), name text not null, slug text unique not null, color text, logo_path text, active boolean default true);
+create table ranks (id uuid primary key default gen_random_uuid(), faction_id uuid references factions(id), name text not null, sort_order int not null default 0);
+create table permissions (id uuid primary key default gen_random_uuid(), key text unique not null, description text);
+create table profile_roles (profile_id uuid references profiles(id), faction_id uuid references factions(id), rank_id uuid references ranks(id), primary key(profile_id,faction_id));
+create table role_permissions (rank_id uuid references ranks(id), permission_id uuid references permissions(id), allowed boolean not null default false, primary key(rank_id,permission_id));
+create table citizen_records (id uuid primary key default gen_random_uuid(), rp_id text unique not null, full_name text not null, status text default 'active', created_by uuid references profiles(id), created_at timestamptz default now());
+create table case_records (id uuid primary key default gen_random_uuid(), faction_id uuid references factions(id), case_number text not null, category text not null, title text not null, status text not null default 'draft', owner_id uuid references profiles(id), payload jsonb not null default '{}', created_at timestamptz default now(), updated_at timestamptz default now(), unique(faction_id,case_number));
+create table access_requests (id uuid primary key default gen_random_uuid(), requester_id uuid references profiles(id), faction_id uuid references factions(id), record_id uuid, rp_reason text not null, status text default 'pending', reviewer_id uuid references profiles(id), created_at timestamptz default now(), reviewed_at timestamptz);
+create table documents (id uuid primary key default gen_random_uuid(), faction_id uuid references factions(id), case_id uuid references case_records(id), document_number text not null, title text not null, storage_key text not null, version int default 1, created_by uuid references profiles(id), created_at timestamptz default now());
+create table audit_log (id bigint generated always as identity primary key, actor_id uuid references profiles(id), action text not null, entity_type text not null, entity_id uuid, metadata jsonb default '{}', created_at timestamptz default now());
+-- Zásada: oprávnění kontrolovat na backendu pro každý záznam a každou akci; samotné skrytí prvku v UI nestačí.
